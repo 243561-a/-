@@ -899,7 +899,7 @@ button:hover{filter:brightness(.97)}
 
   <div id="tab-reply" class="hide">
     <div class="card">
-      <h2>实时弹幕 <span class="muted">（点「让元仔回」就让它答这一条，不用等唤醒词）</span></h2>
+      <h2>实时弹幕 <span class="muted">（点「让远仔回」就让它答这一条，不用等唤醒词）</span></h2>
       <div id="chatlist"><div class="chatempty">还没有弹幕。开播后这里会实时出现。</div></div>
       <div class="hint">点选回复不受唤醒词和 5 分钟冷却限制，但仍然排在同一条队列里，
         不会和礼物话术抢麦。队列满时会提示稍后再点。</div>
@@ -916,7 +916,7 @@ button:hover{filter:brightness(.97)}
           <textarea id="intro2" placeholder="第三段自我介绍"></textarea></div>
       </div>
       <div class="row" style="margin-top:10px">
-        <div style="flex:0 0 auto"><button class="primary" id="intro-say">让元仔说选中的这段</button></div>
+        <div style="flex:0 0 auto"><button class="primary" id="intro-say">让远仔说选中的这段</button></div>
         <div style="flex:0 0 auto"><span class="muted" id="intro-msg"></span></div>
       </div>
       <div class="hint">点按钮是<b>你主动让它开场</b>，不打断正在说的话，会排队播。
@@ -930,9 +930,9 @@ button:hover{filter:brightness(.97)}
         <div style="flex:0"><label>启用</label>
           <select id="r-enable">
             <option value="1">开</option><option value="0">关</option></select></div>
-        <div><label>唤醒标记（弹幕里带这个才回）</label><input id="r-marker" placeholder="#元仔"></div>
+        <div><label>唤醒标记（弹幕里带这个才回）</label><input id="r-marker" placeholder="#远仔"></div>
         <div><label>唤醒词（不带 # 也叫得应，逗号分隔）</label>
-          <input id="r-wake" placeholder="元仔"></div>
+          <input id="r-wake" placeholder="远仔"></div>
         <div style="flex:0 0 110px"><label>最少连喊几遍</label>
           <input type="number" id="r-wakemin" min="1" max="4" value="2"></div>
         <div><label>念之前加的话（用 {user} 名字、{question} 问题）</label>
@@ -955,8 +955,8 @@ button:hover{filter:brightness(.97)}
       <div class="hint">回复是<b>串行</b>的：一个人问完、机器人把话说完，才轮到下一个人；
         同一人默认 5 分钟内只回一次（自己测试时把上面的冷却改成 0 分钟，不然会被自己挡住）。
         队列里等太久的会自动作废，不会去答三分钟前的问题。<br>
-        叫它的方式：直播间指令用 <b>#元仔 问题</b>；不带 # 时喊两遍 <b>元仔元仔 问题</b> 也认。
-        单次「元仔」不算，免得观众随口提到名字就被当成提问（想放开就把「唤醒词最少重复」调成 1）。<br>
+        叫它的方式：直播间指令用 <b>#远仔 问题</b>；不带 # 时喊两遍 <b>远仔远仔 问题</b> 也认。
+        单次「远仔」不算，免得观众随口提到名字就被当成提问（想放开就把「唤醒词最少重复」调成 1）。<br>
         「念之前加的话」决定播报怎么开口：<b>{user}问，{question}。</b> 会念成
         「陈家人问，你多大了。」再接回答。旧写法只写 <b>{user}问，</b> 也会自动把问题补在后面。</div>
     </div>
@@ -998,7 +998,7 @@ button:hover{filter:brightness(.97)}
     <div class="card">
       <h2>试一句（只算不说，不动机器人）</h2>
       <div class="row">
-        <div style="flex:3"><label>模拟一条弹幕</label><input id="r-test" value="#元仔 你多大了"></div>
+        <div style="flex:3"><label>模拟一条弹幕</label><input id="r-test" value="#远仔 你多大了"></div>
         <div style="flex:0"><button onclick="testReply()">试算</button></div>
       </div>
       <div id="r-out" class="hint"></div>
@@ -1238,14 +1238,14 @@ function renderChats(list){
   }
   const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
   const rows = CHAT_CACHE.slice().reverse().map(c=>{
-    const wake = /(#|＃)元仔|元仔元仔/.test(c.text) ? ' wake' : '';
+    const wake = /(#|＃)远仔|远仔远仔/.test(c.text) ? ' wake' : '';
     const sent = SENT[c.id] && (Date.now() - SENT[c.id] < 5000);
     return '<div class="chatrow' + wake + '">'
       + '<span class="tm">' + esc(c.t) + '</span>'
       + '<span class="nm">' + esc(c.name) + '</span>'
       + '<span class="tx" title="' + esc(c.text) + '">' + esc(c.text) + '</span>'
       + '<button class="mini" data-id="' + esc(String(c.id)) + '"'
-      + (sent ? ' disabled' : '') + '>' + (sent ? '已排队' : '让元仔回') + '</button>'
+      + (sent ? ' disabled' : '') + '>' + (sent ? '已排队' : '让远仔回') + '</button>'
       + '</div>';
   }).join('');
   el.innerHTML = rows;
@@ -1303,7 +1303,7 @@ async function replyChat(id, btn){
     btn.textContent = r.ok ? '已排队' : (r.msg || '失败');
     if(!r.ok){
       btn.disabled = false;
-      setTimeout(()=>{ btn.textContent = '让元仔回'; }, 2000);
+      setTimeout(()=>{ btn.textContent = '让远仔回'; }, 2000);
       alert('没排上：' + (r.msg || '未知原因'));
     }
   }
@@ -1514,7 +1514,7 @@ async function doPreview(){
 async function loadReplies(){
   const c = await api('/api/replies');
   document.getElementById('r-enable').value = (c.enabled===false?'0':'1');
-  document.getElementById('r-marker').value = c.marker || '#元仔';
+  document.getElementById('r-marker').value = c.marker || '#远仔';
   document.getElementById('r-wake').value = (c.wake_words||[]).join(',');
   document.getElementById('r-wakemin').value = (c.wake_min_repeat==null?2:c.wake_min_repeat);
   document.getElementById('r-prefix').value = c.speak_prefix || '';

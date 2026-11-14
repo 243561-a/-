@@ -14,7 +14,7 @@ sys.path.insert(0, HERE)
 
 from knowledge import KnowledgeBase, make_entry, norm, parse  # noqa: E402
 
-SAMPLE = """# 元仔知识库
+SAMPLE = """# 远仔知识库
 
 > 说明文字不该变成条目。
 
@@ -22,7 +22,7 @@ SAMPLE = """# 元仔知识库
 关键词：你是谁, 叫什么
 类型：faq
 
-我叫元仔，启元 T1 机器人。
+我叫远仔，启元 T1 机器人。
 
 ## 产品功能
 关键词：产品, 功能
@@ -51,7 +51,7 @@ def tmp_md(text=SAMPLE):
 def test_norm():
     cases = [
         ('你 多大了？', '你多大了'),
-        ('＃元仔　你几岁😀', '元仔你几岁'),
+        ('＃远仔　你几岁😀', '远仔你几岁'),
         ('@张三 你好呀', '你好呀'),
     ]
     for raw, expect in cases:

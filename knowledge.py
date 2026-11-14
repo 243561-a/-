@@ -28,7 +28,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PATH = os.path.join(HERE, 'knowledge.md')
 
 VALID_TYPES = ('fact', 'faq', 'persona')
-HEADER = '# 元仔知识库\n'
+HEADER = '# 远仔知识库\n'
 MAX_CONTEXT = 600
 
 # 和 reply_engine.speakable_question 用的是同一套清洗口径

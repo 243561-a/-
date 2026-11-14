@@ -7,8 +7,8 @@ import sys
 from reply_engine import ReplyEngine
 
 eng = ReplyEngine()
-MK = eng.marker                                  # 例如 #元仔
-BARE = MK.replace('＃', '#').lstrip('#').strip()  # 例如 元仔
+MK = eng.marker                                  # 例如 #远仔
+BARE = MK.replace('＃', '#').lstrip('#').strip()  # 例如 远仔
 
 CASES = [
     # (弹幕原文, 名字, 期望包含的片段列表)

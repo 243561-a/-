@@ -3,9 +3,9 @@
 """
 弹幕阅读回复引擎
 
-只有带唤醒标记（默认 #元仔）的弹幕才会被处理：
+只有带唤醒标记（默认 #远仔）的弹幕才会被处理：
     观众：主播多大了            ← 没标记，只统计，不回复
-    观众：#元仔 你多大了       ← 有标记，念出来并回答
+    观众：#远仔 你多大了       ← 有标记，念出来并回答
 
 回答来源按顺序：
     1. 预设问答库（关键词命中，零延迟零成本）
@@ -16,7 +16,7 @@
 队列里等太久的会作废，避免答三分钟前的问题。
 
 用法：
-    python reply_engine.py "＃元仔 你多大了"        # 手动试一句
+    python reply_engine.py "＃远仔 你多大了"        # 手动试一句
     python reply_engine.py --list                   # 看当前配置摘要
 """
 
@@ -146,9 +146,9 @@ class ReplyEngine:
         self.cfg = cfg
         self._mtime = os.path.getmtime(self.path)
         self.enabled = bool(self.cfg.get('enabled', True))
-        self.marker = self.cfg.get('marker', '#元仔')
-        # 唤醒词：除了带 # 的标记，还认「元仔元仔 问题」「元仔 问题」这种口语叫法。
-        # marker 里的词会自动加入唤醒词，所以把标记改成 #元仔 就自动支持「元仔元仔」。
+        self.marker = self.cfg.get('marker', '#远仔')
+        # 唤醒词：除了带 # 的标记，还认「远仔远仔 问题」「远仔 问题」这种口语叫法。
+        # marker 里的词会自动加入唤醒词，所以把标记改成 #远仔 就自动支持「远仔远仔」。
         words = [w.strip() for w in (self.cfg.get('wake_words') or []) if w and w.strip()]
         bare = self.marker.replace('＃', '#').lstrip('#').strip()
         if bare and bare not in words:
@@ -156,7 +156,7 @@ class ReplyEngine:
         # 太短的词（1 个字）容易误触发，只保留强标记
         self.wake_words = sorted({w for w in words if len(w) >= 2}, key=len, reverse=True)
         self.wake_anywhere = bool(self.cfg.get('wake_anywhere', False))
-        # 口语唤醒至少要连喊几遍才认（默认 2：认「元仔元仔」，不认单次「元仔」，
+        # 口语唤醒至少要连喊几遍才认（默认 2：认「远仔远仔」，不认单次「远仔」，
         # 免得观众随口提到名字就被当成提问）
         self.wake_min_repeat = max(1, int(self.cfg.get('wake_min_repeat', 2) or 1))
         self.priority = int(self.cfg.get('priority', 6))
@@ -208,16 +208,16 @@ class ReplyEngine:
         """返回 (算不算在叫我, 去掉唤醒词后的问题)
 
         三种叫法都认：
-            #元仔 你多大了        ← 带标记，位置不限
-            元仔元仔 你多大了      ← 口语重复唤醒（句首）
-            元仔 你多大了          ← 口语单次唤醒（句首）
+            #远仔 你多大了        ← 带标记，位置不限
+            远仔远仔 你多大了      ← 口语重复唤醒（句首）
+            远仔 你多大了          ← 口语单次唤醒（句首）
         """
         t = _clean(text)
         if not t:
             return False, ''
         norm = t.replace('＃', '#')
 
-        # 1) 强标记：#元仔 / # 元仔，出现即算，位置不限
+        # 1) 强标记：#远仔 / # 远仔，出现即算，位置不限
         mk = self.marker.replace('＃', '#').strip()
         if mk:
             pat = re.escape(mk)
@@ -227,7 +227,7 @@ class ReplyEngine:
             if m:
                 return True, self._strip_q(norm[:m.start()] + ' ' + norm[m.end():])
 
-        # 2) 唤醒词在句首，可以连着喊几遍（元仔元仔）
+        # 2) 唤醒词在句首，可以连着喊几遍（远仔远仔）
         hit, rest, times = self._peel_wake(norm)
         if hit and times >= self.wake_min_repeat:
             return True, self._strip_q(rest)
@@ -296,7 +296,7 @@ class ReplyEngine:
         if not llm.get('enabled'):
             return ''
         system = llm.get('system') or (
-            '你是直播机器人「元仔」，人设：戏精损友型，热情嘴碎、爱演会接梗。'
+            '你是直播机器人「远仔」，人设：戏精损友型，热情嘴碎、爱演会接梗。'
             '观众在直播间用弹幕向你提问，用一到两句话回答，口语化、有梗但不低俗。'
             '绝不复述观众原话里可能有的脏话或敏感内容；碰到政治、色情、暴力、'
             '人身攻击、医疗诊断、投资建议，就绕开并换话题。只输出要说的话。'
@@ -670,7 +670,7 @@ def main():
 
     text = ' '.join(a for a in sys.argv[1:] if not a.startswith('--'))
     if not text:
-        print('用法: python reply_engine.py "＃元仔 你多大了"')
+        print('用法: python reply_engine.py "＃远仔 你多大了"')
         return
     has, q = eng.parse(text)
     print('识别标记：', has, '| 问题：', q)

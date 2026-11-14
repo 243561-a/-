@@ -65,15 +65,15 @@ def test_cooldown():
 
 def test_marker():
     eng = ReplyEngine(CFG)
-    mk = eng.marker                    # 例如 #元仔
-    bare = mk.replace('＃', '#').lstrip('#').strip()   # 例如 元仔
+    mk = eng.marker                    # 例如 #远仔
+    bare = mk.replace('＃', '#').lstrip('#').strip()   # 例如 远仔
     cases = [
         ('主播多大了', False),
         (mk + ' 你多大了', True),
         (mk.replace('#', '＃') + ' 你多大了', True),
         ('# ' + bare + ' 你多大了', True),
-        (bare + bare + ' 你多大了', True),      # 元仔元仔 你多大了
-        (bare + bare + '你多大了', True),       # 元仔元仔你多大了
+        (bare + bare + ' 你多大了', True),      # 远仔远仔 你多大了
+        (bare + bare + '你多大了', True),       # 远仔远仔你多大了
         (bare + ' 你多大了', False),           # 单次只喊一声不算（wake_min_repeat=2）
         (bare + '好可爱', False),              # 观众随口提到名字，不插嘴
         ('我今天看到' + bare + '了', False),   # 句中提到名字不插嘴
