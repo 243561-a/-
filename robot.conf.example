@@ -1,0 +1,6 @@
+# 机器人连接信息模板：拷到新电脑后，改好 host 再改名为 robot.conf
+# 查 IP：在机器人上执行 hostname -I
+
+host=192.168.50.9
+user=run
+key=secrets/qiyuan_t1

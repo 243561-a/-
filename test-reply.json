@@ -1,0 +1,8 @@
+[
+ {"ts":0,"_delay":0,"type":"chat","user_id":"u1","user_name":"小明","text":"主播多大了"},
+ {"ts":500,"_delay":0.5,"type":"chat","user_id":"u2","user_name":"小红","text":"#元仔 你多大了"},
+ {"ts":5500,"_delay":5,"type":"chat","user_id":"u3","user_name":"阿强","text":"＃元仔 会跳舞吗"},
+ {"ts":6500,"_delay":1,"type":"chat","user_id":"u3","user_name":"阿强","text":"#元仔 会唱歌吗"},
+ {"ts":12500,"_delay":6,"type":"chat","user_id":"u4","user_name":"老王","text":"#元仔 今天股市怎么走"},
+ {"ts":20500,"_delay":8,"type":"chat","user_id":"u5","user_name":"小李","text":"#元仔"}
+]

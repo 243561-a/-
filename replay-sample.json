@@ -1,0 +1,23 @@
+[
+  {"_delay": 0.4, "type": "meta", "event": "start", "room": "fake"},
+
+  {"_delay": 0.3, "type": "chat", "user_name": "路人甲", "text": "主播你好"},
+  {"_delay": 0.2, "type": "chat", "user_name": "路人乙", "text": "多大了"},
+
+  {"_delay": 0.5, "type": "gift", "user_id": "u1", "user_name": "小明", "gift": "小心心", "gift_id": "g1", "repeat": 1, "combo": 1, "diamond": 1, "msg_id": "m100"},
+  {"_delay": 0.3, "type": "gift", "user_id": "u1", "user_name": "小明", "gift": "小心心", "gift_id": "g1", "repeat": 2, "combo": 2, "diamond": 1, "msg_id": "m100"},
+  {"_delay": 0.3, "type": "gift", "user_id": "u1", "user_name": "小明", "gift": "小心心", "gift_id": "g1", "repeat": 3, "combo": 3, "diamond": 1, "msg_id": "m100"},
+  {"_delay": 0.3, "type": "gift", "user_id": "u1", "user_name": "小明", "gift": "小心心", "gift_id": "g1", "repeat": 4, "combo": 4, "diamond": 1, "msg_id": "m100"},
+  {"_delay": 0.3, "type": "gift", "user_id": "u1", "user_name": "小明", "gift": "小心心", "gift_id": "g1", "repeat": 5, "combo": 5, "diamond": 1, "msg_id": "m100"},
+
+  {"_delay": 0.2, "type": "gift", "user_id": "u1", "user_name": "小明", "gift": "小心心", "gift_id": "g1", "repeat": 5, "combo": 5, "diamond": 1, "msg_id": "m100"},
+
+  {"_delay": 3.0, "type": "gift", "user_id": "u2", "user_name": "阿珍", "gift": "玫瑰", "gift_id": "g2", "repeat": 1, "combo": 1, "diamond": 1, "msg_id": "m200"},
+
+  {"_delay": 3.0, "type": "gift", "user_id": "u3", "user_name": "土豪哥", "gift": "跑车", "gift_id": "g3", "repeat": 1, "combo": 1, "diamond": 100, "msg_id": "m300"},
+
+  {"_delay": 3.0, "type": "gift", "user_id": "u4", "user_name": "傻X小明", "gift": "嘉年华", "gift_id": "g4", "repeat": 1, "combo": 1, "diamond": 3000, "msg_id": "m400"},
+
+  {"_delay": 3.0, "type": "gift", "user_id": "u5", "user_name": "小美", "gift": "小心心", "gift_id": "g1", "repeat": 1, "combo": 1, "diamond": 1, "msg_id": "m500"},
+  {"_delay": 0.4, "type": "gift", "user_id": "u5", "user_name": "小美", "gift": "玫瑰", "gift_id": "g2", "repeat": 1, "combo": 1, "diamond": 1, "msg_id": "m501"}
+]

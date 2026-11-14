@@ -1,0 +1,3 @@
+# RobotLive 运行时依赖（Windows）
+# 除这一个包以外，全部使用 Python 标准库，不需要装别的东西。
+websocket-client==1.7.0

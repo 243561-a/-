@@ -1,0 +1,10 @@
+[
+  {"_delay": 0.2, "type": "meta", "event": "start", "room": "fake"},
+  {"_delay": 0.3, "type": "like", "user_id": "u1", "user_name": "路人甲", "count": 5},
+  {"_delay": 0.2, "type": "like", "user_id": "u1", "user_name": "路人甲", "count": 8},
+  {"_delay": 0.2, "type": "like", "user_id": "u2", "user_name": "路人乙", "count": 3},
+  {"_delay": 2.6, "type": "like", "user_id": "u3", "user_name": "路人丙", "count": 1},
+  {"_delay": 0.5, "type": "follow", "user_id": "f1", "user_name": "新朋友", "ts": 5},
+  {"_delay": 0.3, "type": "follow", "user_id": "f1", "user_name": "新朋友", "ts": 6},
+  {"_delay": 0.3, "type": "follow", "user_id": "f2", "user_name": "另一个", "ts": 7}
+]

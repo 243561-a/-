@@ -1,0 +1,29 @@
+# ===== 凭据：绝不提交 =====
+cookie.txt
+admin-token.txt
+secrets/
+bin/config.yaml
+
+# ===== 运行产物 =====
+runs/
+*.log
+*.tmp
+
+# ===== 打包产物 =====
+打包输出/
+
+# ===== 虚拟环境 / 依赖 =====
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+
+# ===== 浏览器配置（含登录态，体积大）=====
+.userdata/
+.login-profile-edge/
+
+# ===== 备用采集栈（AGPL-3.0，不随仓库分发）=====
+vendor/
+
+# ===== 杂项 =====
+nul
