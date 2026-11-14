@@ -229,6 +229,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not self._token_ok(qs):
                 return self._json({'error': 'token 不对'}, 403)
             return self._json(self.server.ctx.snapshot())
+        if u.path == '/api/experience':
+            if not self._token_ok(qs):
+                return self._json({'error': 'token 不对'}, 403)
+            return self._json(self.server.ctx.experience_snapshot())
         self._json({'error': 'not found'}, 404)
 
     def do_POST(self):
@@ -252,6 +256,45 @@ class Handler(http.server.BaseHTTPRequestHandler):
             text = (data.get('text') or '').strip()[:300]
             ok, msg = ctx.answer_danmaku(name, text, data.get('uid') or '')
             return self._json({'ok': ok, 'msg': msg})
+
+        # ---------- 知识库 / 高频问题 ----------
+        if u.path == '/api/experience':
+            return self._json(ctx.experience_snapshot())
+
+        if u.path == '/api/experience/accept':
+            cid = (data.get('id') or '').strip()
+            if not cid:
+                return self._json({'ok': False, 'msg': '缺少问题 id'})
+            ok, msg, extra = ctx.accept_suggestion(
+                cid, data.get('text'), data.get('keywords'))
+            out = {'ok': ok, 'msg': msg}
+            out.update(extra or {})
+            return self._json(out)
+
+        if u.path == '/api/experience/dismiss':
+            eg = ctx.reply_engine
+            if eg is None or getattr(eg, 'experience', None) is None:
+                return self._json({'ok': False, 'msg': '问答未启用'})
+            ok = eg.experience.dismiss((data.get('id') or '').strip())
+            return self._json({'ok': ok, 'msg': '' if ok else '没找到这条问题'})
+
+        if u.path == '/api/experience/regenerate':
+            eg = ctx.reply_engine
+            if eg is None or getattr(eg, 'experience', None) is None:
+                return self._json({'ok': False, 'msg': '问答未启用'})
+            ok = eg.experience.regenerate((data.get('id') or '').strip())
+            return self._json({'ok': ok,
+                               'msg': '已排队，稍后刷新看新建议' if ok else '没找到这条问题'})
+
+        if u.path == '/api/experience/settings':
+            eg = ctx.reply_engine
+            if eg is None or getattr(eg, 'experience', None) is None:
+                return self._json({'ok': False, 'msg': '问答未启用'})
+            try:
+                got = eg.experience.update_settings(data or {})
+                return self._json({'ok': True, 'settings': got})
+            except Exception as e:
+                return self._json({'ok': False, 'msg': str(e)})
 
         if u.path == '/api/pause':
             minutes = float(data.get('minutes') or 5)
@@ -333,6 +376,22 @@ class AdminContext:
     def note_spoken(self, text):
         self.spoken += 1
         self.last_text = text
+
+    # ---------- 知识库 / 高频问题 ----------
+    def experience_snapshot(self):
+        """经验库读接口：只有管线进程能给出实时计数。"""
+        eg = self.reply_engine
+        if eg is None or getattr(eg, 'experience', None) is None:
+            return {'ok': False, 'msg': '问答未启用', 'clusters': []}
+        exp = eg.experience
+        return {'ok': True, 'stats': exp.stats(), 'settings': exp.settings(),
+                'clusters': exp.all_clusters()}
+
+    def accept_suggestion(self, cid, text=None, keywords=None):
+        eg = self.reply_engine
+        if eg is None:
+            return False, '问答未启用', {}
+        return eg.accept_suggestion(cid, text, keywords)
 
     def snapshot(self):
         idle = None

@@ -14,9 +14,8 @@ import os
 import time
 
 
-def write_json(path, obj, indent=2, retries=5):
-    """原子写 JSON。返回 True 表示成功。"""
-    text = json.dumps(obj, ensure_ascii=False, indent=indent)
+def write_text(path, text, retries=5):
+    """原子写文本（知识库的 markdown 也走这套），返回 True 表示成功。"""
     tmp = path + '.tmp'
     with open(tmp, 'w', encoding='utf-8', newline='') as f:
         f.write(text)
@@ -42,6 +41,12 @@ def write_json(path, obj, indent=2, retries=5):
     except OSError:
         pass
     return True
+
+
+def write_json(path, obj, indent=2, retries=5):
+    """原子写 JSON。返回 True 表示成功。"""
+    return write_text(path, json.dumps(obj, ensure_ascii=False, indent=indent),
+                      retries=retries)
 
 
 def read_json(path):

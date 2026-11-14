@@ -30,6 +30,9 @@ import threading
 import time
 import urllib.request
 
+from experience import ExperienceStore
+from knowledge import KnowledgeBase
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 CFG_PATH = os.path.join(HERE, 'replies.json')
 
@@ -55,13 +58,70 @@ def _clean(text):
     return re.sub(r'\s+', ' ', (text or '')).strip()
 
 
+def llm_key(cfg):
+    """Key 来源：环境变量 → 项目内 secrets/llm_key（控制台里填了就写在这里）"""
+    llm = (cfg or {}).get('llm') or {}
+    key = os.environ.get(llm.get('api_key_env') or 'ROBOTLIVE_LLM_KEY', '').strip()
+    if key:
+        return key
+    p = llm.get('api_key_file') or os.path.join(HERE, 'secrets', 'llm_key')
+    try:
+        if os.path.isfile(p):
+            return open(p, 'r', encoding='utf-8').read().strip()
+    except OSError:
+        pass
+    return ''
+
+
+def llm_complete(cfg, system, user, timeout=None):
+    """一次 OpenAI 兼容的 chat/completions 调用；没配好就返回空串。
+
+    问答和建议生成共用这一份，避免两处各写一套 Key / 代理 / 超时逻辑。
+    """
+    llm = (cfg or {}).get('llm') or {}
+    key = llm_key(cfg)
+    base = (llm.get('base_url') or '').rstrip('/')
+    if not key or not base:
+        return ''
+    body = json.dumps({
+        'model': llm.get('model') or 'deepseek-chat',
+        'messages': [
+            {'role': 'system', 'content': system},
+            {'role': 'user', 'content': user},
+        ],
+        'temperature': float(llm.get('temperature', 0.85)),
+        'max_tokens': int(llm.get('max_tokens', 120)),
+    }, ensure_ascii=False).encode()
+    req = urllib.request.Request(
+        base + '/chat/completions', data=body,
+        headers={'Content-Type': 'application/json',
+                 'Authorization': 'Bearer ' + key})
+    # 跟随系统代理：国内直连 api.deepseek.com 实测要 12 秒，走代理只要 0.8 秒
+    opener = urllib.request.build_opener()
+    with opener.open(req, timeout=float(timeout or llm.get('timeout', 12))) as r:
+        data = json.loads(r.read().decode('utf-8', 'replace'))
+    choices = data.get('choices') or []
+    if not choices:
+        return ''
+    return (choices[0].get('message') or {}).get('content') or ''
+
+
 class ReplyEngine:
-    def __init__(self, path=None):
+    def __init__(self, path=None, knowledge=None, experience=None):
         self.path = path or CFG_PATH
         self._mtime = 0
         self.cfg = {}
         self._last_user = {}      # uid -> 上次回复时刻
         self._last_answer = {}    # uid -> 上次回答文本（避免同一人连续得到同句）
+        # 知识库和经验库默认跟 replies.json 放同一目录：
+        # 测试传临时配置时天然隔离，不会污染真实数据。
+        base = os.path.dirname(os.path.abspath(self.path)) or HERE
+        self.knowledge = knowledge if knowledge is not None else \
+            KnowledgeBase(os.path.join(base, 'knowledge.md'))
+        self.experience = experience if experience is not None else \
+            ExperienceStore(os.path.join(base, 'experience.json'),
+                            knowledge=self.knowledge,
+                            cfg_getter=lambda: self.cfg)
         self.load()
 
     # ---------- 配置 ----------
@@ -124,12 +184,24 @@ class ReplyEngine:
         return True
 
     def maybe_reload(self):
+        changed = False
         try:
             if os.path.getmtime(self.path) != self._mtime:
-                return self.load()
+                changed = self.load()
         except Exception:
             pass
-        return False
+        # 知识库/经验库也可能被控制台或手工改过，顺带刷新
+        if self.knowledge is not None:
+            try:
+                self.knowledge.maybe_reload()
+            except Exception:
+                pass
+        if self.experience is not None:
+            try:
+                self.experience.maybe_reload()
+            except Exception:
+                pass
+        return changed
 
     # ---------- 标记识别 ----------
     def parse(self, text):
@@ -219,29 +291,9 @@ class ReplyEngine:
                 return item.get('reply') or ''
         return ''
 
-    def _llm_key(self):
-        """Key 来源：环境变量 → 项目内 secrets/llm_key（GUI 里填了就写在这里）"""
-        llm = self.cfg.get('llm') or {}
-        key = os.environ.get(llm.get('api_key_env') or 'ROBOTLIVE_LLM_KEY', '').strip()
-        if key:
-            return key
-        p = llm.get('api_key_file') or os.path.join(HERE, 'secrets', 'llm_key')
-        try:
-            if os.path.isfile(p):
-                return open(p, 'r', encoding='utf-8').read().strip()
-        except OSError:
-            pass
-        return ''
-
     def _llm_answer(self, q):
         llm = self.cfg.get('llm') or {}
         if not llm.get('enabled'):
-            return ''
-        key = self._llm_key()
-        if not key:
-            return ''
-        base = (llm.get('base_url') or '').rstrip('/')
-        if not base:
             return ''
         system = llm.get('system') or (
             '你是直播机器人「元仔」，人设：戏精损友型，热情嘴碎、爱演会接梗。'
@@ -249,27 +301,42 @@ class ReplyEngine:
             '绝不复述观众原话里可能有的脏话或敏感内容；碰到政治、色情、暴力、'
             '人身攻击、医疗诊断、投资建议，就绕开并换话题。只输出要说的话。'
         )
-        body = json.dumps({
-            'model': llm.get('model') or 'deepseek-chat',
-            'messages': [
-                {'role': 'system', 'content': system},
-                {'role': 'user', 'content': q[:200]},
-            ],
-            'temperature': float(llm.get('temperature', 0.85)),
-            'max_tokens': int(llm.get('max_tokens', 120)),
-        }, ensure_ascii=False).encode()
-        req = urllib.request.Request(
-            base + '/chat/completions', data=body,
-            headers={'Content-Type': 'application/json',
-                     'Authorization': 'Bearer ' + key})
-        # 跟随系统代理：国内直连 api.deepseek.com 实测要 12 秒，走代理只要 0.8 秒
-        opener = urllib.request.build_opener()
-        with opener.open(req, timeout=float(llm.get('timeout', 12))) as r:
-            data = json.loads(r.read().decode('utf-8', 'replace'))
-        choices = data.get('choices') or []
-        if not choices:
-            return ''
-        return (choices[0].get('message') or {}).get('content') or ''
+        extra = self._context_block(q)
+        if extra:
+            system = system + '\n\n' + extra
+        return llm_complete(self.cfg, system, q[:200])
+
+    def _context_block(self, q):
+        """把知识库和相似历史问答拼进提示词；任何异常都不影响正常回答。"""
+        parts = []
+        if self.knowledge is not None:
+            try:
+                ctx = self.knowledge.context(q)
+                if ctx:
+                    parts.append('【可参考的设定与知识】（不要逐字念，融进回答里）\n' + ctx)
+            except Exception:
+                pass
+        if self.experience is not None:
+            try:
+                shots = self.experience.few_shot(q, limit=2)
+                if shots:
+                    lines = ['【以前类似问题的回答】']
+                    for question, answer in shots:
+                        lines.append('- 问：%s → 答：%s' % (question, answer))
+                    parts.append('\n'.join(lines))
+            except Exception:
+                pass
+        return '\n\n'.join(parts)
+
+    def _is_weather_question(self, q):
+        wcfg = self.cfg.get('weather') or {}
+        wmod = _weather() if wcfg.get('enabled', True) else None
+        if wmod is None:
+            return False
+        try:
+            return bool(wmod.is_weather_question(q))
+        except Exception:
+            return False
 
     def _fallback(self, uid):
         pool = [x for x in (self.cfg.get('fallback') or []) if x] or [
@@ -295,6 +362,19 @@ class ReplyEngine:
                 source = 'intro'
         except Exception:
             pass
+
+        # 知识直答优先于预设：采纳过的高频问题要能命中，否则会被宽匹配的预设抢走。
+        # 天气类问题即使命中了旧条目，也要走下面的实时查询，不能拿过期知识糊弄。
+        if not text and self.knowledge is not None:
+            try:
+                hit = self.knowledge.direct(q)
+                if hit and not self._is_weather_question(q):
+                    body = (hit.get('body') or '').strip()
+                    if body:
+                        text = body
+                        source = 'knowledge'
+            except Exception:
+                pass
 
         if not text:
             try:
@@ -427,11 +507,19 @@ class ReplyEngine:
         uid = str(event.get('user_id') or '')
         name = (event.get('user_name') or '朋友')[:10]
 
+        blocked = any(w in q for w in self.forbidden)
+        # 先记账再判冷却：被冷却挡掉的提问也是真实需求，频次不能漏
+        if not blocked and self.experience is not None:
+            try:
+                self.experience.record(q, uid, name)
+            except Exception:
+                pass
+
         wait = self.user_cd - (now_ms - self._last_user.get(uid, 0))
         if wait > 0:
             return None, '同一人冷却中（还剩 %d 秒）' % int(wait / 1000 + 0.5)
 
-        if any(w in q for w in self.forbidden):
+        if blocked:
             return {'uid': uid, 'name': name, 'question': q,
                     'text': self.cfg.get('refuse_reply', '这个话题我就不接啦，换个别的问我。'),
                     'source': 'blocked', 'ts': now_ms}, 'ok:blocked'
@@ -447,6 +535,11 @@ class ReplyEngine:
         source = item.get('source') or ''
         if not text:
             text, source = self.answer(item['question'], item['uid'])
+        if self.experience is not None:
+            try:
+                self.experience.record_answer(item['question'], text, source)
+            except Exception:
+                pass
         item = dict(item, text=text)
         full = self.compose(item)
         est = self.est_base_ms + len(full) * self.est_ms_per_char
@@ -463,6 +556,35 @@ class ReplyEngine:
             'question': item['question'],
             'est_ms': est,
         }, source
+
+    def accept_suggestion(self, cid, text=None, keywords=None):
+        """采纳一条建议：写进 knowledge.md，并把经验库状态标记为已采纳。"""
+        if self.experience is None or self.knowledge is None:
+            return False, '知识库/经验库未启用', {}
+        entry = self.experience.accept(cid, text, keywords)
+        if not entry:
+            return False, '这条还没有可采纳的回答', {}
+        try:
+            self.knowledge.upsert(entry)
+        except Exception as e:
+            return False, '写知识库失败：%s' % e, {}
+        conflict = self._preset_conflict(entry)
+        msg = '已采纳，之后同类问题直接回答'
+        if conflict:
+            msg += '（注意：该问题也会命中预设「%s」，现在知识优先）' % conflict
+        return True, msg, {'entry': entry, 'preset_conflict': conflict}
+
+    def _preset_conflict(self, entry):
+        """提醒：采纳的知识会先于预设命中，别让两边话术打架。"""
+        keys = [k for k in (entry.get('keywords') or []) if k]
+        for item in self.presets:
+            for k in (item.get('keys') or []):
+                if not k:
+                    continue
+                for mine in keys:
+                    if k in mine or mine in k:
+                        return k
+        return ''
 
 
 class ReplyWorker(threading.Thread):

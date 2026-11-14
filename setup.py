@@ -59,7 +59,8 @@ def check_files():
     required = [
         'gui.py', 'pipeline.py', 'admin.py', 'backend.py', 'rules.py',
         'reply_engine.py', 'speaker.py', 'weather.py', 'bans.py', 'go_collector.py',
-        'replies.json', 'gifts.json',
+        'knowledge.py', 'experience.py',
+        'replies.json', 'gifts.json', 'knowledge.md',
         'bin/douyinLive.exe', 'bin/config.yaml',
     ]
     missing = [f for f in required if not os.path.isfile(os.path.join(HERE, f))]

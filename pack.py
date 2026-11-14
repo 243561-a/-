@@ -31,14 +31,15 @@ FILES = [
     # 主程序
     'gui.py', 'pipeline.py', 'admin.py', 'backend.py', 'rules.py',
     'reply_engine.py', 'speaker.py', 'weather.py', 'bans.py', 'go_collector.py',
-    'jsonio.py', 'interactions.py',
+    'jsonio.py', 'interactions.py', 'knowledge.py', 'experience.py',
     # 运行配置
     'replies.json', 'gifts.json', 'bans.json', 'interactions.json',
-    'gui-state.json', 'admin-token.txt',
+    'knowledge.md', 'gui-state.json', 'admin-token.txt',
     # 备用与自测
     'cookie.txt', 'replay-sample.json', 'replay-interactions.json', 'test-reply.json',
     'test_dedup.py', 'test_reply_queue.py', 'test_speak.py', 'test_atomic.py',
-    'test_interactions.py',
+    'test_interactions.py', 'test_knowledge.py', 'test_experience.py',
+    'test_reply_kb.py',
     # 一键获取 Cookie / 识别直播间号（需要 node，可选功能）
     'login-and-grab.mjs', 'detect-room.mjs', 'package.json', 'package-lock.json',
 ]

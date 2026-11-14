@@ -217,6 +217,11 @@ def main():
     rules = GiftRules(args.gifts)
     bans = BanList(os.path.join(HERE, 'bans.json'))
     reply = ReplyEngine(os.path.join(HERE, 'replies.json'))
+    # 经验库自带后台线程：每 5 秒批量落盘，达阈值时生成待审建议
+    try:
+        reply.experience.start()
+    except Exception as e:
+        print('[知识库][告警] 经验库线程没起来：%s，学习功能不可用' % type(e).__name__)
     inter = InteractionRules(os.path.join(HERE, 'interactions.json'))
     sp = None if args.dry_run else Speaker()
     worker = SpeechWorker(sp, args.dry_run)
@@ -276,7 +281,15 @@ def main():
     mode = '回放假事件' if args.replay else f'直播间 {args.room}'
     print(f'=== 礼物链路运行中 | {mode} | {"dry-run" if args.dry_run else "真播报"} ===')
     rmark = reply.marker if reply.enabled else '（已关闭）'
-    print(f'（收到礼物会等连击停顿后汇总播一次；带 {rmark} 的弹幕会念出来并回答）\n')
+    print(f'（收到礼物会等连击停顿后汇总播一次；带 {rmark} 的弹幕会念出来并回答）')
+    try:
+        kn = len(reply.knowledge.all()) if reply.knowledge is not None else 0
+        st = reply.experience.stats() if reply.experience is not None else {}
+        learn = '开启' if st.get('enabled') else '关闭'
+        print(f'（知识库 {kn} 条；高频问题学习{learn}，已记录 {st.get("asks", 0)} 次提问、'
+              f'{st.get("clusters", 0)} 个问题，待审 {st.get("pending", 0)} 条）\n')
+    except Exception:
+        pass
 
     start = time.time()
     counts = {'chat': 0, 'gift': 0, 'enter': 0, 'reply': 0, 'like': 0, 'follow': 0,
@@ -359,6 +372,11 @@ def main():
 
     stop_event.set()
     reply_worker.stop()
+    if reply.experience is not None:
+        try:
+            reply.experience.stop()      # 收尾时把没落盘的计数写掉
+        except Exception:
+            pass
     for task in rules.flush_all(now_ms()):
         submit_task(task)
     worker.drain()

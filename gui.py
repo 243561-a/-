@@ -32,6 +32,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 GIFTS = os.path.join(HERE, 'gifts.json')
 REPLIES = os.path.join(HERE, 'replies.json')
 INTERACTIONS = os.path.join(HERE, 'interactions.json')
+KNOWLEDGE = os.path.join(HERE, 'knowledge.md')
+EXPERIENCE = os.path.join(HERE, 'experience.json')
 STATE = os.path.join(HERE, 'gui-state.json')
 
 LOCK = threading.Lock()
@@ -183,6 +185,54 @@ def load_interactions():
                 'follow': dict(DEFAULT['follow']),
                 'max_name_chars': DEFAULT['max_name_chars'],
                 'forbidden_words': list(DEFAULT['forbidden_words'])}
+
+
+def load_knowledge():
+    """知识库：knowledge.md 是唯一来源，页面只做浏览，不提供在线编辑。"""
+    from knowledge import KnowledgeBase
+    kb = KnowledgeBase(KNOWLEDGE)
+    return {'version': 1, 'path': 'knowledge.md', 'readonly': True,
+            'entries': kb.all()}
+
+
+def local_experience():
+    """采集没在跑时直接读本地经验文件（只读，不起后台线程）。"""
+    from experience import ExperienceStore
+    exp = ExperienceStore(EXPERIENCE)
+    return {'ok': True, 'offline': True, 'stats': exp.stats(),
+            'settings': exp.settings(), 'clusters': exp.all_clusters()}
+
+
+def experience_call(path, payload):
+    """优先交给管线（唯一写者）；连不上时才退回本地写，避免双写打架。"""
+    r = admin_call(path, payload)
+    if r.get('ok') or ('ok' in r and '管线没响应' not in (r.get('msg') or '')):
+        return r
+    from experience import ExperienceStore
+    exp = ExperienceStore(EXPERIENCE)
+    cid = (payload.get('id') or '').strip()
+    if path == '/api/experience/dismiss':
+        ok = exp.dismiss(cid)
+        return {'ok': ok, 'offline': True, 'msg': '' if ok else '没找到这条问题'}
+    if path == '/api/experience/regenerate':
+        ok = exp.regenerate(cid)
+        return {'ok': ok, 'offline': True,
+                'msg': '采集未运行，已标记；下次启动后会生成建议' if ok else '没找到这条问题'}
+    if path == '/api/experience/settings':
+        try:
+            return {'ok': True, 'offline': True,
+                    'settings': exp.update_settings(payload or {})}
+        except Exception as e:
+            return {'ok': False, 'msg': str(e)}
+    if path == '/api/experience/accept':
+        entry = exp.accept(cid, payload.get('text'), payload.get('keywords'))
+        if not entry:
+            return {'ok': False, 'offline': True, 'msg': '这条还没有可采纳的回答'}
+        from knowledge import KnowledgeBase
+        KnowledgeBase(KNOWLEDGE).upsert(entry)
+        return {'ok': True, 'offline': True, 'entry': entry,
+                'msg': '已采纳（采集未运行，已写入知识库，下次启动生效）'}
+    return r
 
 
 def _cookie_raw():
@@ -693,6 +743,14 @@ button:hover{filter:brightness(.97)}
 .irow{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px}
 .irow input[type=radio]{flex:0 0 auto;width:auto;margin-top:15px}
 .irow textarea{flex:1;min-height:54px}
+/* 知识库 */
+.kbitem{border:1px solid #e5e8ec;border-radius:8px;padding:8px 10px;margin-bottom:8px;background:#fff}
+.kbitem summary{cursor:pointer;font-size:13px;line-height:1.7}
+.kbody{margin-top:10px}
+.kbody textarea{width:100%;min-height:64px}
+.kbsug{border:1px solid #e5e8ec;border-radius:8px;padding:10px;margin-top:10px;background:#fbfcfd}
+.kbsug textarea{width:100%;min-height:52px;margin-top:6px}
+.kbsug .row{margin-top:8px}
 </style></head><body>
 <header>
   <span class="dot" id="dot"></span>
@@ -705,6 +763,7 @@ button:hover{filter:brightness(.97)}
     <div class="tab active" data-t="room">直播间</div>
     <div class="tab" data-t="gift">礼物反馈</div>
     <div class="tab" data-t="reply">弹幕回复</div>
+    <div class="tab" data-t="kb">知识库</div>
     <div class="tab" data-t="debug">调试工具</div>
   </div>
 
@@ -946,6 +1005,38 @@ button:hover{filter:brightness(.97)}
     </div>
   </div>
 
+  <div id="tab-kb" class="hide">
+    <div class="card">
+      <h2>高频问题 <span class="tag">问够次数才学</span></h2>
+      <div class="row">
+        <div><label>学习</label>
+          <select id="kb-learn"><option value="1">开启</option><option value="0">关闭</option></select></div>
+        <div><label>达几次生成建议</label><input id="kb-min" type="number" value="3"></div>
+        <div><label>相似阈值（0~1）</label><input id="kb-thr" type="number" step="0.01" value="0.72"></div>
+        <div><label>建议冷却（分钟）</label><input id="kb-cd" type="number" value="30"></div>
+        <div style="flex:0"><button class="primary" onclick="saveKbSettings()">保存设置</button></div>
+      </div>
+      <div class="hint" id="kb-learn-msg"></div>
+      <div id="kb-suggest"></div>
+      <div class="hint">同一问题被问够次数后，会用已配置的大模型生成一版更巧妙的回答；采纳后才生效。
+        生成时会把问题样本和相关知识发给模型，关闭「学习」后不再记录也不再生成。</div>
+    </div>
+
+    <div class="card">
+      <h2>知识条目 <span class="tag">来自 knowledge.md</span></h2>
+      <div class="row">
+        <div style="flex:2"><label>搜索</label>
+          <input id="kb-search" placeholder="标题 / 关键词 / 正文" oninput="renderKb()"></div>
+        <div style="flex:0 0 auto"><label>&nbsp;</label>
+          <button onclick="loadKb()">重新加载</button></div>
+      </div>
+      <div class="hint">直接编辑项目根目录的 <code>knowledge.md</code>，保存后 200ms 内生效，这里只做浏览。
+        faq=能直接念的回答；fact=产品资料，只给大模型参考；persona=语气人设。</div>
+      <div id="kb-list" style="margin-top:10px"></div>
+      <div class="hint" id="kb-msg"></div>
+    </div>
+  </div>
+
   <div id="tab-debug" class="hide">
     <div class="card">
       <h2>实时消息概览</h2>
@@ -1022,11 +1113,12 @@ document.querySelectorAll('.tab').forEach(t=>{
   t.onclick = ()=>{
     document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
     t.classList.add('active');
-    ['room','gift','reply','debug'].forEach(k=>{
+    ['room','gift','reply','kb','debug'].forEach(k=>{
       document.getElementById('tab-'+k).classList.toggle('hide', k!==t.dataset.t);
     });
     if(t.dataset.t==='gift'){ loadGifts(); loadInteractions(); }
     if(t.dataset.t==='reply') loadReplies();
+    if(t.dataset.t==='kb') loadKb();
     if(t.dataset.t==='debug') { refresh(); loadFlag(); }
   };
 });
@@ -1545,6 +1637,128 @@ async function testReply(){
     + ' · 限流：' + esc(r.limit) + '</div>';
 }
 
+// ---------------------------------------------------------------- 知识库 / 高频问题
+let KB = [];
+
+async function loadKb(){
+  const c = await api('/api/knowledge');
+  KB = c.entries || [];
+  document.getElementById('kb-msg').textContent =
+    '共 ' + KB.length + ' 段，来源 knowledge.md · ' + new Date().toLocaleTimeString();
+  renderKb();
+  await loadKbExperience();
+}
+
+function renderKb(){
+  const box = document.getElementById('kb-list');
+  if(!box) return;
+  const q = (document.getElementById('kb-search').value || '').trim().toLowerCase();
+  box.innerHTML = '';
+  let shown = 0;
+  KB.forEach(e=>{
+    const hay = ((e.title||'') + ' ' + (e.keywords||[]).join(' ') + ' '
+                 + (e.body||'')).toLowerCase();
+    if(q && hay.indexOf(q) < 0) return;
+    shown++;
+    const d = document.createElement('details');
+    d.className = 'kbitem';
+    const s = document.createElement('summary');
+    s.innerHTML = '<b>' + esc(e.title || '（未命名）') + '</b> '
+      + '<span class="tag">' + esc(e.type || 'fact') + '</span> '
+      + (e.source === 'adopted' ? '<span class="muted">来自高频问题采纳</span> ' : '')
+      + '<span class="muted">' + esc((e.keywords||[]).join(' / ')) + '</span>';
+    d.appendChild(s);
+    const body = document.createElement('div');
+    body.className = 'kbody';
+    body.innerHTML = '<div style="white-space:pre-wrap;line-height:1.8">'
+      + esc(e.body || '') + '</div>';
+    d.appendChild(body);
+    box.appendChild(d);
+  });
+  if(!shown){
+    box.innerHTML = '<div class="hint">'
+      + (q ? '没有匹配的条目' : '还没有知识，编辑 knowledge.md 后点「重新加载」。') + '</div>';
+  }
+}
+
+async function loadKbExperience(){
+  const r = await api('/api/experience');
+  const msg = document.getElementById('kb-learn-msg');
+  const box = document.getElementById('kb-suggest');
+  if(!r || r.ok === false){
+    box.innerHTML = '<div class="hint">' + esc((r && r.msg) || '经验库还没准备好') + '</div>';
+    return;
+  }
+  const st = r.stats || {}, cfg = r.settings || {};
+  document.getElementById('kb-learn').value = cfg.enabled === false ? '0' : '1';
+  document.getElementById('kb-min').value = cfg.min_count || 3;
+  document.getElementById('kb-thr').value = cfg.merge_threshold || 0.72;
+  document.getElementById('kb-cd').value = Math.round((cfg.suggest_cooldown_s || 1800) / 60);
+  msg.textContent = (r.offline
+      ? '采集未运行：以下是本地记录，采纳会直接写入，下次启动生效'
+      : '采集运行中：采纳后立即生效')
+    + ' · 共记录 ' + (st.asks || 0) + ' 次提问 / ' + (st.clusters || 0)
+    + ' 个问题 / 待审 ' + (st.pending || 0) + ' 条';
+  box.innerHTML = '';
+  const list = (r.clusters || []).filter(c => c.status === 'suggested' || c.status === 'open');
+  if(!list.length){
+    box.innerHTML = '<div class="hint">还没有需要处理的问题。观众把同一个问题问够次数后，这里会出现建议。</div>';
+    return;
+  }
+  list.slice(0, 30).forEach(c=>{
+    const div = document.createElement('div');
+    div.className = 'kbsug';
+    div.innerHTML =
+      '<div><b>' + esc(c.canonical || '') + '</b> <span class="muted">累计 '
+      + (c.count || 0) + ' 次 · ' + (c.status === 'suggested' ? '待审' : '待生成')
+      + '</span></div>'
+      + '<div class="muted" style="font-size:12px;margin-top:4px">变体：'
+      + esc((c.samples || []).join(' / ')) + '</div>'
+      + '<textarea class="sug-text"></textarea>'
+      + '<div class="row">'
+      + '<div style="flex:0 0 auto"><button class="primary">采纳</button></div>'
+      + '<div style="flex:0 0 auto"><button class="regen">重新生成</button></div>'
+      + '<div style="flex:0 0 auto"><button class="dismiss">忽略</button></div>'
+      + '<div style="flex:1"><span class="muted sug-msg"></span></div>'
+      + '</div>';
+    const ta = div.querySelector('.sug-text');
+    ta.value = (c.suggestion && c.suggestion.text) || '';
+    ta.placeholder = '还没有建议；点「重新生成」让模型写一版，或直接在这里写';
+    const out = div.querySelector('.sug-msg');
+    div.querySelector('button.primary').onclick = async ()=>{
+      const text = (ta.value || '').trim();
+      if(!text){ out.textContent = '先写一句或点重新生成'; return; }
+      const rr = await api('/api/experience/accept', {id: c.id, text: text});
+      out.textContent = rr.msg || (rr.ok ? '已采纳' : '失败');
+      if(rr.ok) setTimeout(loadKb, 400);
+    };
+    div.querySelector('button.regen').onclick = async ()=>{
+      const rr = await api('/api/experience/regenerate', {id: c.id});
+      out.textContent = rr.msg || '';
+      if(rr.ok) setTimeout(loadKbExperience, 6000);
+    };
+    div.querySelector('button.dismiss').onclick = async ()=>{
+      const rr = await api('/api/experience/dismiss', {id: c.id});
+      out.textContent = rr.ok ? '已忽略' : (rr.msg || '失败');
+      if(rr.ok) setTimeout(loadKbExperience, 400);
+    };
+    box.appendChild(div);
+  });
+}
+
+async function saveKbSettings(){
+  const body = {
+    enabled: document.getElementById('kb-learn').value === '1',
+    min_count: +document.getElementById('kb-min').value || 3,
+    merge_threshold: +document.getElementById('kb-thr').value || 0.72,
+    suggest_cooldown_s: Math.max(60, Math.round((+document.getElementById('kb-cd').value || 30) * 60))
+  };
+  const r = await api('/api/experience/settings', body);
+  document.getElementById('kb-learn-msg').textContent =
+    r.ok ? '设置已保存' : ('保存失败：' + (r.msg || ''));
+  if(r.ok) loadKbExperience();
+}
+
 function esc(s){ return String(s==null?'':s)
   .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
@@ -1698,6 +1912,13 @@ class Handler(BaseHTTPRequestHandler):
                 kp = os.path.join(HERE, 'secrets', 'llm_key')
                 c['has_llm_key'] = os.path.isfile(kp) and os.path.getsize(kp) > 2
             return self._send(c)
+        if self.path == '/api/knowledge':
+            return self._send(load_knowledge())
+        if self.path == '/api/experience':
+            r = admin_call('/api/experience', {})
+            if not r.get('ok') and ('ok' not in r or '管线没响应' in (r.get('msg') or '')):
+                r = local_experience()       # 采集没跑：读本地文件，标注 offline
+            return self._send(r)
         self._send({'ok': False, 'msg': 'not found'}, 404)
 
     def do_POST(self):
@@ -1799,6 +2020,13 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 write_json(REPLIES, cfg)
                 return self._send({'ok': True})
+            except Exception as e:
+                return self._send({'ok': False, 'msg': str(e)})
+
+        if self.path in ('/api/experience/accept', '/api/experience/dismiss',
+                         '/api/experience/regenerate', '/api/experience/settings'):
+            try:
+                return self._send(experience_call(self.path, body or {}))
             except Exception as e:
                 return self._send({'ok': False, 'msg': str(e)})
 
